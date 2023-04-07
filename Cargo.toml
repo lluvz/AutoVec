@@ -1,6 +1,6 @@
 [package]
 name = "auto_vec"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Vec that automatically remove the child that is droped"
 repository = "https://https://github.com/lluvz/AutoVec/"
