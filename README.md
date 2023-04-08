@@ -1,15 +1,14 @@
 # AutoVec
-//!
-Vec that automatically remove the child that is droped
-**This crate is still in development.**
-Many method of the default vec is still to be implemented for it.
+Vec that automatically remove the child when the child is being dropped. 
+**This crate is still in development.** 
+## Purpose of this crate
+The purpose of this crate is create a container to gather variables to be read or processed collectively, while still allowing individual variables to be mutated freely. 
+This means that the container need to store raw pointers rather than references. However, if the child variables are moved or dropped, the raw pointers will pointer to invalid datas. Thus, the dropped child need to be removed from the vector, and its place in the memory cannot be changed. 
+Luckily, Rust provide the `Drop` trait which allows to define a `drop()` callback to be called when the variable is dropped, which can be used to inform the container to remove the dropped child. 
+Rust also provide `pin` to prevent the child from begin moved thus changing its position in the memory. 
+Also note that mutating the child itself, e.g. `child1 = child2` will cause child1 to be dropped thus removing it from the vec. This is needed for the reason that the above operation will change the pointer to its container.
 
-Note that AutoVec stores the raw pointer of the child, meaning dereferencing is unsafe, which also means that you can freely mutate the child's field.
-However, mutating the child it self, e.g. `child1 = child2` will cause child1 to be dropped thus removing it from the vec.
-Also, as using `mem::swap` does not drop the child, but changes the child's parent, which is not memory safe, the child is pinned to prevent from being swapped.
-
-# Examples
-
+# Example
 ```
 use auto_vec::*;
 let mut t1 = AutoChild::new(0);
