@@ -1,5 +1,5 @@
 //! # AutoVec
-//! Vec that automatically remove the child when the child is being dropped. 
+//! Vec that automatically remove the child when the child is being dropped.  
 //! **This crate is still in development.** 
 //! ## Purpose of this crate
 //! The purpose of this crate is create a container to gather variables to be read or processed collectively, while still allowing individual variables to be mutated freely. 
@@ -21,7 +21,8 @@
 //! println!("{:?}", v);
 //! // t1 has been automatically removed from the vector
 //! ```
-
+#[cfg(test)]
+mod tests;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ops::Index;
@@ -30,6 +31,23 @@ use std::pin::Pin;
 pub struct AutoVec<T> {
     pub children: Vec<*const AutoChild<T>>,
 }
+/// ```
+/// use auto_vec::*;
+/// #[derive(Debug)]
+/// struct Obj;
+/// fn main() {
+///     let mut v = AutoVec::new();
+///     let mut c1 = AutoChild::new(Obj);
+///     let mut c2 = AutoChild::new(Obj);
+///     v.add(&mut c1);
+///     v.add(&mut c2);
+///     for i in 0..v.len() {
+///         // Collective processing
+///         println!("{:?}", v[i]);
+///         // Do not use v[i] = ..., for it will change v[i]'s pointer to its container.
+///     }
+/// }
+/// ```
 #[derive(Debug)]
 pub struct AutoChild<T> {
     parent: *const AutoVec<T>,
@@ -98,6 +116,11 @@ impl<T: 'static> Index<usize> for AutoVec<T> {
     type Output = T;
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
-        unsafe {(self.children[index] as *mut T).as_mut().unwrap()}
+        unsafe {self.children[index].as_ref().unwrap()}
+    }
+}
+impl<T: 'static> std::ops::IndexMut<usize> for AutoVec<T> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        unsafe {(self.children[index] as *mut AutoChild<T>).as_mut().unwrap()}
     }
 }
