@@ -106,6 +106,12 @@ impl<T> AutoVec<T> {
         self.children.swap_remove(child.index);
         child.parent = 0 as _;
     }
+    pub fn clear(&mut self) {
+        for i in 0..self.children.len() {
+            unsafe {(self.children[i] as *mut AutoChild<T>).as_mut().unwrap().parent = 0 as _};
+        }
+        self.children.clear();
+    }
     #[inline]
     pub fn len(&self) -> usize {
         self.children.len()
@@ -113,16 +119,19 @@ impl<T> AutoVec<T> {
     pub fn iter(&self) -> Iter<T> {
         Iter {
             last: &self.children[self.len() - 1] as *const _,
-            current: unsafe {(&self.children[0] as *const *const AutoChild<T>).sub(1)}
+            current: unsafe {(&self.children[0] as *const *const AutoChild<T>).sub(1)},
+            lifetime: PhantomData,
         }
     }
 }
-pub struct Iter<T> {
+use std::marker::PhantomData;
+pub struct Iter<'a, T> {
     last: *const *const AutoChild<T>,
     current: *const *const AutoChild<T>,
+    lifetime: PhantomData<&'a T>
 }
-impl<T: 'static> Iterator for Iter<T> {
-    type Item = &'static mut T;
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a mut T;
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {self.current = self.current.add(1)};
