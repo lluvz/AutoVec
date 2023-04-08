@@ -8,7 +8,7 @@ Luckily, Rust provide the `Drop` trait which allows to define a `drop()` callbac
 Rust also provide `pin` to prevent the child from begin moved thus changing its position in the memory.  
 Also note that mutating the child itself, e.g. `child1 = child2` will cause child1 to be dropped thus removing it from the vec. This is needed for the reason that the above operation will change the pointer to its container.
 
-# Examples
+# Example
 ```
 use auto_vec::*;
 let mut t1 = AutoChild::new(0);
