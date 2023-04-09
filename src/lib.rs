@@ -65,6 +65,7 @@ impl<T> DerefMut for AutoChild<T> {
     }
 }
 impl<T> AutoChild<T> {
+    /// Note that the returned value of this function is not AutoChild itself, but the pinned version of it.
     pub fn new(child: T) -> Pin<Box<Self>> {
         Box::pin(
             Self {
@@ -94,11 +95,23 @@ impl<T> AutoVec<T> {
             children: Vec::new(),
         }
     }
+    /// If the child is already in the vec, it will not be added a second time.
+    /// A normal child cannot be added to multiple containers, adding it to another vec will remove it from the previous one.
     pub fn add(&mut self, child: &mut AutoChild<T>) {
-        child.parent = self as *const _;
-        child.index = self.children.len();
-        self.children.push(child as *const _);
+        if child.parent == 0 as _ {
+            child.parent = self as *const _;
+            child.index = self.children.len();
+            self.children.push(child as *const _);
+        } else {
+            if child.parent != self as *const _ {
+                unsafe {(child.parent as *mut AutoVec<T>).as_mut().unwrap().called_remove(&child)};
+                child.parent = self as *const _;
+                child.index = self.children.len();
+                self.children.push(child as *const _);
+            }
+        }
     }
+    #[inline]
     fn called_remove(&mut self, child: &AutoChild<T>) {
         self.children.swap_remove(child.index);
     }
