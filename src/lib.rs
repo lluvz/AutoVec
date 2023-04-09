@@ -45,7 +45,7 @@ fn main() {
  */
 #[derive(Debug)]
 pub struct AutoVec<T> {
-    pub children: Vec<*const AutoChild<T>>,
+    children: Vec<*const AutoChild<T>>,
 }
 #[derive(Debug)]
 pub struct AutoChild<T> {
@@ -90,11 +90,25 @@ impl<T> Drop for AutoVec<T> {
     }
 }
 impl<T> AutoVec<T> {
+    /// Note that the reterned type is not AutoVec itself, but std::pin::Pin<Box<AutoVec>>.  
+    /// It is required because, AutoChild contains a pointer to its container. If the container is not pinned, its address may change, leading to invalid pointer in AutoChild.
     #[inline]
-    pub fn new() -> Self {
-        Self {
-            children: Vec::new(),
+    pub fn new() -> Pin<Box<Self>> {
+        Box::pin(
+            Self {
+                children: Vec::new(),
+            }
+        )
+    }
+    /// Moves all the elements of other into self, leaving other empty.
+    /// See [`Vec::append()`](https://doc.rust-lang.org/stable/std/vec/struct.Vec.html#method.append) for more details.
+    pub fn append(&mut self, other: &mut AutoVec<T>) {
+        for i in 0..other.len() {
+            let child = unsafe {&mut*(other.children[i] as *mut AutoChild<T>)};
+            child.parent = self as _;
+            child.index = i + self.len();
         }
+        self.children.append(&mut other.children);
     }
     /// If the child is already in the vec, it will not be added a second time.
     /// A normal child cannot be added to multiple containers, adding it to another vec will remove it from the previous one.
@@ -198,14 +212,14 @@ impl<'a, T> Iterator for IterMut<'a, T> {
         }
     }
 }
-impl<'a, T> IntoIterator for &'a AutoVec<T> {
+impl<'a, T> IntoIterator for &'a Pin<Box<AutoVec<T>>> {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
 }
-impl<'a, T> IntoIterator for &'a mut AutoVec<T> {
+impl<'a, T> IntoIterator for &'a mut Pin<Box<AutoVec<T>>> {
     type Item = &'a mut T;
     type IntoIter = IterMut<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
