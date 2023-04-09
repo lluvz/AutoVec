@@ -36,7 +36,7 @@ fn main() {
     let mut v = AutoVec::new();
     v.add(&mut t1);
     v.add(&mut t2);
-    for i in v.iter() {
+    for i in &mut v {
         *i = 3;
     }
     println!("{:?}", v);
@@ -78,18 +78,19 @@ impl<T> AutoChild<T> {
 impl<T> Drop for AutoChild<T> {
     fn drop(&mut self) {
         if self.parent!= 0 as _ {
-            unsafe {(self.parent as *mut AutoVec<T>).as_mut()}.unwrap().called_remove(self);
+            unsafe {&mut*(self.parent as *mut AutoVec<T>)}.called_remove(self);
         }
     }
 }
 impl<T> Drop for AutoVec<T> {
     fn drop(&mut self) {
         for i in &self.children {
-            unsafe {(*i as *mut AutoChild<T>).as_mut().unwrap()}.parent = 0 as _;
+            unsafe {&mut*(*i as *mut AutoChild<T>)}.parent = 0 as _;
         }
     }
 }
 impl<T> AutoVec<T> {
+    #[inline]
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
@@ -115,19 +116,44 @@ impl<T> AutoVec<T> {
     fn called_remove(&mut self, child: &AutoChild<T>) {
         self.children.swap_remove(child.index);
     }
+    /// Using [`Vec::swap_remove()`](https://doc.rust-lang.org/stable/std/vec/struct.Vec.html#method.swap_remove)
     pub fn remove(&mut self, child: &mut AutoChild<T>) {
         self.children.swap_remove(child.index);
         child.parent = 0 as _;
     }
     pub fn clear(&mut self) {
         for i in 0..self.children.len() {
-            unsafe {(self.children[i] as *mut AutoChild<T>).as_mut().unwrap().parent = 0 as _};
+            unsafe {(&mut*(self.children[i] as *mut AutoChild<T>)).parent = 0 as _};
         }
         self.children.clear();
     }
     #[inline]
     pub fn len(&self) -> usize {
         self.children.len()
+    }
+    /// Reexport [`Vec::shrink_to()`](https://doc.rust-lang.org/stable/std/vec/struct.Vec.html#method.shrink_to)
+    #[inline]
+    pub fn shrink_to(&mut self, min_capacity: usize) {
+        self.children.shrink_to(min_capacity);
+    }
+    /// Reexport [`Vec::shrink_to_fit()`](https://doc.rust-lang.org/stable/std/vec/struct.Vec.html#method.shrink_to_fit)
+    #[inline]
+    pub fn shrink_to_fit(&mut self) {
+        self.children.shrink_to_fit();
+    }
+    /// See [`Vec::with_capacity()`](https://doc.rust-lang.org/stable/std/vec/struct.Vec.html#method.with_capacity) for more details.
+    #[inline]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            children: Vec::with_capacity(capacity)
+        }
+    }
+    pub fn iter_mut(&self) -> IterMut<T> {
+        IterMut {
+            last: &self.children[self.len() - 1] as *const _,
+            current: unsafe {(&self.children[0] as *const *const AutoChild<T>).sub(1)},
+            lifetime: PhantomData,
+        }
     }
     pub fn iter(&self) -> Iter<T> {
         Iter {
@@ -143,7 +169,24 @@ pub struct Iter<'a, T> {
     current: *const *const AutoChild<T>,
     lifetime: PhantomData<&'a T>
 }
+pub struct IterMut<'a, T> {
+    last: *const *const AutoChild<T>,
+    current: *const *const AutoChild<T>,
+    lifetime: PhantomData<&'a T>
+}
 impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a T;
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        unsafe {self.current = self.current.add(1)};
+        if self.current > self.last {
+            None
+        } else {
+            unsafe {Some(&((&**self.current).child))}
+        }
+    }
+}
+impl<'a, T> Iterator for IterMut<'a, T> {
     type Item = &'a mut T;
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -153,5 +196,32 @@ impl<'a, T> Iterator for Iter<'a, T> {
         } else {
             unsafe {Some(&mut (&mut *(*self.current as *mut AutoChild<T>)).child)}
         }
+    }
+}
+impl<'a, T> IntoIterator for &'a AutoVec<T> {
+    type Item = &'a T;
+    type IntoIter = Iter<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+impl<'a, T> IntoIterator for &'a mut AutoVec<T> {
+    type Item = &'a mut T;
+    type IntoIter = IterMut<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
+    }
+}
+use std::ops::Index;
+use std::ops::IndexMut;
+impl<T> Index<usize> for AutoVec<T> {
+    type Output = T;
+    fn index(&self, index: usize) -> &Self::Output {
+        unsafe {&((&*self.children[index]).child)}
+    }
+}
+impl<T> IndexMut<usize> for AutoVec<T> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        unsafe {&mut((&mut*(self.children[index] as *mut AutoChild<T>)).child)}
     }
 }

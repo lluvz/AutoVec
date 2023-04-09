@@ -1,6 +1,6 @@
 # AutoVec
 Vec that automatically remove the child when the child is being dropped.  
-**This crate is still in development! It is not stable yet! Before version 0.2.0 is published, the children field will be exposed in order to access some functionality of vec::Vec, however, manipulating it may cause memory problems**  
+**This crate is still in development! It is not stable yet! Before version 0.2.0 is published, the children field will be exposed in order to access some functionality of vec::Vec, however, straightly manipulating it may cause memory problems**  
 **Updating may be frequent before the stablized version is published**
 ## Purpose of this crate
 The purpose of this crate is create a container to gather variables to be read or processed collectively, while still allowing individual variables to be mutated freely.  
